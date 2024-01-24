@@ -1,0 +1,13 @@
+diff --git a/u-dma-buf.c b/u-dma-buf.c
+index 3d19a1c..ff27596 100644
+--- a/u-dma-buf.c
++++ b/u-dma-buf.c
+@@ -923,6 +923,8 @@ static struct udmabuf_device_data* udmabuf_device_create(const char* name, struc
+         /*
+          * set this->dma_dev->dma_mask
+          */
++        dma_set_mask_and_coherent(this->dma_dev,DMA_BIT_MASK(34));  //34bit extension for rzv2m
++
+         if (this->dma_dev->dma_mask == NULL) {
+             this->dma_dev->dma_mask = &this->dma_dev->coherent_dma_mask;
+         }
