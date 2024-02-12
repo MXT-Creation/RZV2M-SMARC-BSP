@@ -1,0 +1,135 @@
+--- ./arch/arm64/kernel/smp.c.bak	2022-07-01 18:57:04.070269555 +0900
++++ ./arch/arm64/kernel/smp.c	2022-07-01 19:10:15.195176852 +0900
+@@ -74,12 +74,13 @@
+ 	IPI_TIMER,
+ 	IPI_IRQ_WORK,
+ 	IPI_WAKEUP,
+-	NR_IPI
++	NR_IPI,
++	MAX_IPI = 16,
+ };
+ 
+ static int ipi_irq_base __read_mostly;
+-static int nr_ipi __read_mostly = NR_IPI;
+-static struct irq_desc *ipi_desc[NR_IPI] __read_mostly;
++static int max_ipi __read_mostly = MAX_IPI;
++static struct irq_desc *ipi_desc[MAX_IPI] __read_mostly;
+ 
+ static void ipi_setup(int cpu);
+ 
+@@ -796,6 +797,13 @@
+ 	S(IPI_WAKEUP, "CPU wake-up interrupts"),
+ };
+ 
++struct ipi {
++       const char *desc;
++       void (*handler)(int ipinr);
++};
++
++static struct ipi ipi_handles[MAX_IPI - NR_IPI] = { 0 };
++
+ static void smp_cross_call(const struct cpumask *target, unsigned int ipinr);
+ 
+ unsigned long irq_err_count;
+@@ -813,6 +821,17 @@
+ 		seq_printf(p, "      %s\n", ipi_types[i]);
+ 	}
+ 
++        for (i = NR_IPI; i < MAX_IPI; i++) {
++               if (ipi_handles[i-NR_IPI].handler) {
++                       unsigned int irq = irq_desc_get_irq(ipi_desc[i]);
++                       seq_printf(p, "%*s%u:%s", prec - 1, "IPI", i,
++                                  prec >= 4 ? " " : "");
++                       for_each_online_cpu(cpu)
++                               seq_printf(p, "%10u ", kstat_irqs_cpu(irq, cpu));
++                       seq_printf(p, "      %s\n", ipi_handles[i-NR_IPI].desc);
++               }
++        }
++
+ 	seq_printf(p, "%*s: %10lu\n", prec, "Err", irq_err_count);
+ 	return 0;
+ }
+@@ -934,7 +953,11 @@
+ #endif
+ 
+ 	default:
+-		pr_crit("CPU%u: Unknown IPI message 0x%x\n", cpu, ipinr);
++             if (ipi_handles[ipinr - NR_IPI].handler) {
++                    ipi_handles[ipinr - NR_IPI].handler(ipinr);
++             } else {
++                    pr_crit("CPU%u: Unknown IPI message 0x%x\n", cpu, ipinr);
++             }
+ 		break;
+ 	}
+ 
+@@ -961,7 +984,7 @@
+ 	if (WARN_ON_ONCE(!ipi_irq_base))
+ 		return;
+ 
+-	for (i = 0; i < nr_ipi; i++)
++	for (i = 0; i < max_ipi; i++)
+ 		enable_percpu_irq(ipi_irq_base + i, 0);
+ }
+ 
+@@ -973,7 +996,7 @@
+ 	if (WARN_ON_ONCE(!ipi_irq_base))
+ 		return;
+ 
+-	for (i = 0; i < nr_ipi; i++)
++	for (i = 0; i < max_ipi; i++)
+ 		disable_percpu_irq(ipi_irq_base + i);
+ }
+ #endif
+@@ -982,10 +1005,10 @@
+ {
+ 	int i;
+ 
+-	WARN_ON(n < NR_IPI);
+-	nr_ipi = min(n, NR_IPI);
++	/*WARN_ON(n < MAX_IPI);*/
++	max_ipi = min(n, MAX_IPI);
+ 
+-	for (i = 0; i < nr_ipi; i++) {
++	for (i = 0; i < max_ipi; i++) {
+ 		int err;
+ 
+ 		err = request_percpu_irq(ipi_base + i, ipi_handler,
+@@ -1002,6 +1025,38 @@
+ 	ipi_setup(smp_processor_id());
+ }
+ 
++/*
++ * set_ipi_handler:
++ * Interface provided for a kernel module to specify an IPI handler function.
++ */
++int set_ipi_handler(int ipinr, void *handler, char *desc)
++{
++       unsigned int cpu = smp_processor_id();
++
++       if (ipi_handles[ipinr - NR_IPI].handler) {
++               pr_crit("CPU%u: IPI handler 0x%x already registered to %pf\n",
++                                                       cpu, ipinr, ipi_handles[ipinr].handler);
++               return -1;
++       }
++
++       ipi_handles[ipinr - NR_IPI].handler = handler;
++       ipi_handles[ipinr - NR_IPI].desc = desc;
++
++       return 0;
++}
++EXPORT_SYMBOL(set_ipi_handler);
++
++/*
++ * clear_ipi_handler:
++ * Interface provided for a kernel module to clear an IPI handler function.
++ */
++void clear_ipi_handler(int ipinr)
++{
++       ipi_handles[ipinr - NR_IPI].handler = NULL;
++       ipi_handles[ipinr - NR_IPI].desc = NULL;
++}
++EXPORT_SYMBOL(clear_ipi_handler);
++
+ void smp_send_reschedule(int cpu)
+ {
+ 	smp_cross_call(cpumask_of(cpu), IPI_RESCHEDULE);

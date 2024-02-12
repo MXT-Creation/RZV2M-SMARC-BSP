@@ -1,0 +1,60 @@
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g011gbg_isp.dtsi b/arch/arm64/boot/dts/renesas/r9a09g011gbg_isp.dtsi
+index ecb372a..cffff71 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g011gbg_isp.dtsi
++++ b/arch/arm64/boot/dts/renesas/r9a09g011gbg_isp.dtsi
+@@ -5,4 +5,55 @@
+  * Copyright (C) 2023 Renesas Electronics Corp.
+  */
+ 
++&reserved_memory {
++    rtos_rpmsg_reserved: rtos_rpmsg@7C000000 {
++        no-map;
++        reg = <0x0 0x7C000000 0x0 0x3F00000>;
++    };
++};
+ 
++/{
++    memory@7C000000 {
++        device_type = "memory";
++        reg = <0x0 0x7C000000 0x0 0x4000000>;
++    };
++
++    rsctbl: rsctbl@7FDD0000 {
++        compatible = "shm_uio";
++        reg = <0x0 0x7FDD0000 0x0 0x20000>;
++        no-map;
++    };
++    
++    shm1:shm@7FE00000 {
++        compatible = "shm_uio";
++        reg = <0 0x7FE00000 0 0x00040000>;
++    };
++
++    shm0:shm@7FE40000 {
++        compatible = "shm_uio";
++        reg = <0 0x7FE40000 0 0x00040000>;
++    };
++
++    /* VRING area for OpenAMP */
++    vring1:vring@7FE80000 {
++        compatible = "vring_uio";
++        reg = <0 0x7FE80000 0 0x00040000>;
++    };
++
++    vring0:vring@7FEC0000 {
++        compatible = "vring_uio";
++        reg = <0 0x7FEC0000 0 0x00040000>;
++    };
++
++    gic0:gic0@82000000 {
++        compatible = "shm_uio";
++        reg = <0 0x82000000 0 0x00080000>;
++        ipi = <8>;
++    };
++    
++    gic1:gic1@82000000 {
++        compatible = "shm_uio";
++        reg = <0 0x82000000 0 0x00080000>;
++        ipi = <9>;
++    };
++};

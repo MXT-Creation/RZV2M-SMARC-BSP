@@ -1,0 +1,15 @@
+[Unit]
+Description = Comctl daemon
+
+[Service]
+# The RtoL-Request driver can be accessed to SD card or eMMC device.
+# This shell script changes the target to be mounted by the boot mode.
+# If mount point with each device could not be mounted, the comctld deamon 
+# will be executed forcibly.
+ExecStart = /usr/bin/comctld
+ExecStartPost=-/bin/bash /lib/systemd/system/automount_rtol.sh
+Type = forking
+Restart = on-failure
+
+[Install]
+WantedBy=multi-user.target

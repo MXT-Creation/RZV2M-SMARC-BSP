@@ -1,0 +1,1053 @@
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index 90884c3..d861b05 100755
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -207,6 +207,7 @@ CONFIG_VIDEO_RCAR_CSI2=y
+ CONFIG_VIDEO_RCAR_VIN=y
+ CONFIG_VIDEO_RZG2L_CRU=y
+ CONFIG_VIDEO_RZG2L_CSI2=y
++CONFIG_VIDEO_RZV2M_COMCTL=y
+ CONFIG_V4L_MEM2MEM_DRIVERS=y
+ CONFIG_MEDIA_USB_SUPPORT=y
+ CONFIG_USB_VIDEO_CLASS=y
+diff --git a/drivers/media/platform/Kconfig b/drivers/media/platform/Kconfig
+index 3cea734..551f826 100755
+--- a/drivers/media/platform/Kconfig
++++ b/drivers/media/platform/Kconfig
+@@ -154,6 +154,7 @@ source "drivers/media/platform/rcar-vin/Kconfig"
+ source "drivers/media/platform/rzg2l-cru/Kconfig"
+ source "drivers/media/platform/atmel/Kconfig"
+ source "drivers/media/platform/sunxi/Kconfig"
++source "drivers/media/platform/rzv2m-comctl/Kconfig"
+ 
+ config VIDEO_TI_CAL
+ 	tristate "TI CAL (Camera Adaptation Layer) driver"
+diff --git a/drivers/media/platform/Makefile b/drivers/media/platform/Makefile
+index 4d2d1b0..3fa016e 100755
+--- a/drivers/media/platform/Makefile
++++ b/drivers/media/platform/Makefile
+@@ -62,6 +62,7 @@ obj-$(CONFIG_VIDEO_XILINX)		+= xilinx/
+ 
+ obj-$(CONFIG_VIDEO_RCAR_VIN)		+= rcar-vin/
+ obj-$(CONFIG_VIDEO_RZG2L_CRU)		+= rzg2l-cru/
++obj-$(CONFIG_VIDEO_RZV2M_COMCTL)	+= rzv2m-comctl/
+ 
+ obj-$(CONFIG_VIDEO_ATMEL_ISC)		+= atmel/
+ obj-$(CONFIG_VIDEO_ATMEL_ISI)		+= atmel/
+diff --git b/drivers/media/platform/rzv2m-comctl/Kconfig b/drivers/media/platform/rzv2m-comctl/Kconfig
+new file mode 100755
+index 0000000..7437ff7
+--- /dev/null
++++ b/drivers/media/platform/rzv2m-comctl/Kconfig
+@@ -0,0 +1,14 @@
++# SPDX-License-Identifier: GPL-2.0
++config VIDEO_RZV2M_COMCTL
++	tristate "RZV2M Comctl Driver"
++	depends on VIDEO_V4L2 && OF
++	depends on ARCH_RENESAS || COMPILE_TEST
++	select MEDIA_CONTROLLER
++	select VIDEO_V4L2_SUBDEV_API
++	select VIDEOBUF2_DMA_CONTIG
++	select V4L2_FWNODE
++	help
++	  Support for Renesas RZV2M comctl driver.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called rzv2m-comctl.
+diff --git b/drivers/media/platform/rzv2m-comctl/Makefile b/drivers/media/platform/rzv2m-comctl/Makefile
+new file mode 100755
+index 0000000..0c49144
+--- /dev/null
++++ b/drivers/media/platform/rzv2m-comctl/Makefile
+@@ -0,0 +1,2 @@
++# SPDX-License-Identifier: GPL-2.0
++obj-$(CONFIG_VIDEO_RZV2M_COMCTL) += rzv2m-comctl-v4l2.o
+diff --git b/drivers/media/platform/rzv2m-comctl/rzv2m-comctl-v4l2.c b/drivers/media/platform/rzv2m-comctl/rzv2m-comctl-v4l2.c
+new file mode 100755
+index 0000000..501d5b3
+--- /dev/null
++++ b/drivers/media/platform/rzv2m-comctl/rzv2m-comctl-v4l2.c
+@@ -0,0 +1,819 @@
++/*
++ * V4L2 driver for the Renesas RZ/V2M Comctl
++ *
++ * Copyright (C) 2022 Renesas Electronics Corporation
++ *
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/module.h>
++#include <linux/moduleparam.h>
++#include <linux/types.h>
++#include <linux/fs.h>
++#include <linux/errno.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/device.h>
++#include <linux/miscdevice.h>
++#include <linux/platform_device.h>
++#include <linux/uaccess.h>
++#include <linux/ioport.h>
++#include <linux/io.h>
++#include <linux/mm.h>
++#include <linux/slab.h>
++#include <linux/of.h>
++#include <linux/of_platform.h>
++#include <linux/videodev2.h>
++
++#include <media/v4l2-ioctl.h>
++#include <media/videobuf2-vmalloc.h>
++#include <media/videobuf2-dma-contig.h>
++#include <media/v4l2-fh.h>
++#include <media/v4l2-rect.h>
++#include <media/v4l2-common.h>
++#include <asm/uaccess.h>
++#include <linux/delay.h>
++#include <linux/wait.h>
++#include <linux/poll.h>
++
++#include <media/videobuf2-v4l2.h>
++
++#include "rzv2m-comctl.h"
++
++struct comctl_v4l2_dev *comctl_v4l2_devs[1];
++struct comctl_dev comctl_dev_data;
++unsigned char buf_sync[COMCTLD_PACKET_SIZE];
++unsigned char buf_async[COMCTLD_PACKET_SIZE];
++
++static wait_queue_head_t read_q;
++
++/*************************************************************************/
++/*                                                                       */
++/* Comctl cdevice                                                        */
++/*                                                                       */
++/*************************************************************************/
++static int comctl_dev_open(struct inode *i, struct file *f)
++{
++    struct comctl_v4l2_dev *dev = comctl_v4l2_devs[0];
++    v4l2_info(&dev->v4l2_dev,"device %s called open()\n", COMCTL_MODULE_NAME);
++    return 0;
++}
++static int comctl_dev_close(struct inode *i, struct file *f)
++{
++    struct comctl_v4l2_dev *dev = comctl_v4l2_devs[0];
++    v4l2_info(&dev->v4l2_dev,"device %s called close()\n", COMCTL_MODULE_NAME);
++    return 0;
++}
++
++static long comctl_dev_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
++{
++    
++    int ret;
++    struct comctl_v4l2_dev *dev = comctl_v4l2_devs[0];
++    
++    switch (cmd) {
++    case IOCTL_COMCTLD_REGISTER:
++        dev->cmng.d_task = get_current();
++        dev->cmng.s_id = COMCTL_SIGNAL_NUM;
++
++        //v4l2_info(&dev->v4l2_dev,"Registered the tsk->pid = %d\n", dev->cmng.d_task->pid);
++        break;
++        
++    case IOCTL_COMCTLD_SENDDATA:
++        ret = copy_from_user(dev->cmng.sync_data, (comctl_payload_st *)arg, COMCTLD_PACKET_SIZE);
++        if (ret)
++            return -EACCES;
++        
++        //v4l2_info(&dev->v4l2_dev,"Receive the sync data(com_id:0x%08x) from comctld\n", dev->cmng.sync_data->com_id);
++        
++        if ((dev->cmng.sync_data->com_type & 0xFF) == ACK_COMMAND_RESPONSE)
++            complete(&dev->cmng.daemon_ack);
++        
++        break;
++        
++    case IOCTL_COMCTLD_SENDDATA_CB:
++        ret = copy_from_user(dev->cmng.async_data, (comctl_payload_st *)arg, COMCTLD_PACKET_SIZE);
++        if (ret)
++            return -EACCES;
++        
++        //v4l2_info(&dev->v4l2_dev,"Receive the async data(com_id:0x%08x) from comctld\n", dev->cmng.async_data->com_id);
++        
++        if (dev->cmng.st_stream_on) {
++            if (( dev->cmng.async_data->com_type & 0xFF) == ACK_CALLBACK) {
++                complete(&dev->cmng.daemon_callback);
++                wake_up_interruptible( &read_q );
++            }
++        }
++        break;
++        
++    case IOCTL_COMCTLD_RCIEVEDATA:
++        ret = copy_to_user((comctl_payload_st *) arg, dev->cmng.sync_data, COMCTLD_PACKET_SIZE);
++        if (ret)
++            return -EACCES;
++        
++        //v4l2_info(&dev->v4l2_dev,"Send the data(com_id:0x%08x) to comctld\n", dev->cmng.sync_data->com_id);
++        break;
++        
++    default:
++        return -EINVAL;
++    }
++
++    return 0;
++}
++
++static unsigned int comctl_v4l2_poll(struct file* filp, poll_table* wait)
++{
++    unsigned int mask = 0;
++    struct comctl_v4l2_dev *dev = comctl_v4l2_devs[0];
++    
++    poll_wait( filp, &read_q,  wait );
++    //v4l2_info(&dev->v4l2_dev, "[Info]%s is polled.\n",__func__);
++    
++    if(dev->cmng.st_stream_on)
++        mask = POLLIN;
++    
++    return mask;
++}
++
++static const struct file_operations comctl_dev_fops = {
++    .owner = THIS_MODULE,
++    .open = comctl_dev_open,
++    .release = comctl_dev_close,
++    .unlocked_ioctl = comctl_dev_ioctl,
++};
++
++
++static int isp_accquisition_device_init(void)
++{
++    dev_t dev_num;
++    int ret = 0, i;
++
++    //1. Provide dev_t
++    comctl_dev_data.comctl_devt = 0;
++    ret = alloc_chrdev_region(&comctl_dev_data.comctl_devt, 0, 1, "comctl_dev");
++    if (ret < 0) {
++        printk(KERN_ERR "[Error]comctl_dev failed to register comctl_dev_t.\n");
++        return ret;
++    }
++    printk(KERN_INFO "allocated comctl device '%d %d'\n",
++                      MAJOR(comctl_dev_data.comctl_devt),
++                      MINOR(comctl_dev_data.comctl_devt));
++
++    //2. Create dev file
++    comctl_dev_data.dev_class = class_create(THIS_MODULE, "comctl_dev_class");
++    if (comctl_dev_data.dev_class == NULL)
++        printk(KERN_ERR "[Error]Failed to created class comctl dev.\n");
++    
++    dev_num = MKDEV(MAJOR(comctl_dev_data.comctl_devt), i);
++    device_create(comctl_dev_data.dev_class, NULL, dev_num,
++                  NULL, "comctldev%d", i);
++    cdev_init(&comctl_dev_data.comctl_cdev, &comctl_dev_fops);
++    ret = cdev_add(&comctl_dev_data.comctl_cdev, dev_num, 1);
++    if (ret < 0) {
++        printk(KERN_ERR "[Error]Failed to add entry point to comctl device\n");
++        return ret;
++    }
++
++    init_waitqueue_head( &read_q );
++    
++    printk(KERN_INFO "comctl_device : created correctly\n");
++
++    return 0;
++}
++
++static void isp_accquisition_device_exit(void)
++{
++    dev_t dev_num;
++
++    dev_num = MKDEV(MAJOR(comctl_dev_data.comctl_devt), 0);
++    cdev_del(&comctl_dev_data.comctl_cdev);
++    device_destroy(comctl_dev_data.dev_class, dev_num);
++    
++    // class_unregister(isp_dev_data.dev_class);
++    class_destroy(comctl_dev_data.dev_class);
++    printk(KERN_INFO "Remove Comctl device class successfully.\n");
++
++    unregister_chrdev_region(dev_num, 1);
++    printk(KERN_INFO "Remove Comctl device driver successfully.\n");
++}
++
++
++/*************************************************************************/
++/*                                                                       */
++/* Comctl v4l2 device                                                    */
++/*                                                                       */
++/*************************************************************************/
++static void comctl_gen_packet(struct comctl_v4l2_dev *dev, int type, unsigned long handle)
++{
++    
++    struct command_payload *tx_data = dev->cmng.sync_data;
++    
++    memset(tx_data, 0, COMCTLD_PACKET_SIZE);    /* clear */
++    
++    switch (type) {
++    case COMCTL_START_CAPTURE:
++        tx_data->size = B2SDK_STARTCAPTURE_SIZE; //36bytes
++        tx_data->com_type = B2SDK_TYPE; //Request Command
++        tx_data->com_order = 0x00; //Not using it in this case
++        tx_data->com_id = ID_START_VIDEO_CAPTURE; //Starts Camera Capture
++        tx_data->trans_id = 0x00000000; //to be set by daemon //previously allocated transaction ID
++        tx_data->cb_type = 0x00; //Not using it in this case
++        tx_data->time_id = 0x0000;
++        tx_data->time_stamp =0x00000000;
++
++        if((dev->cmng.pix_format.width == 1920) && (dev->cmng.pix_format.height == 1080))
++            tx_data->data[0] = 1; /*[Todo] fixed val: D_IMAGE_SIZE_FHD_30P */
++        else {
++            v4l2_info(&dev->v4l2_dev, "[Error]Other format select! Set to 1920x1080 30fps mode.\n");
++            tx_data->data[0] = 1;
++        }
++        tx_data->data[1] = dev->cmng.req_count;
++        
++        break;
++    case COMCTL_STOP_CAPTURE:
++        tx_data->size = B2SDK_STOPCAPTURE_SIZE;
++        tx_data->com_type = B2SDK_TYPE; //Request Command
++        tx_data->com_order = 0x00; //Not using it in this case
++        tx_data->com_id = ID_STOP_VIDEO_CAPTURE; //video capt stop
++        tx_data->trans_id = 0x00000000; //to be set by daemon //previously allocated transaction ID
++        tx_data->cb_type = 0x00; //Not using it in this case
++        tx_data->time_id = 0x0000; //Not using it in this case
++        tx_data->time_stamp = 0x00000000; //Not using it in this case
++        tx_data->data[0] = (unsigned int)(dev->cmng.source_id); //source id(lower).
++        tx_data->data[1] = (unsigned int)(dev->cmng.source_id >> 32); //source id(upper).
++        break;
++    case COMCTL_IMAGE_READ:
++        tx_data->size = B2SDK_IMREAD_SIZE; //44bytes
++        tx_data->com_type = B2SDK_TYPE; //Request Command
++        tx_data->com_order = 0x00; //Not using it in this case
++        tx_data->com_id = ID_IMREAD; //Gets the latest image from the monitoring
++        tx_data->trans_id = 0x00000000; //to be set by daemon
++        tx_data->cb_type = 0x00; //Not using it in this case
++        tx_data->time_id = 0x0000; //Not using it in this case
++        tx_data->time_stamp = 0x00000000; //Not using it in this case
++        tx_data->data[0] = (unsigned int)(dev->cmng.source_id); //source id(lower).
++        tx_data->data[1] = (unsigned int)(dev->cmng.source_id >> 32); //source id(upper).
++        tx_data->data[2] = IMREAD_WIDTH; //width [Todo] Fixed value
++        tx_data->data[3] = IMREAD_HIGHT; //height [Todo] Fixed value
++        tx_data->data[4] = IMREAD_FORMT; //format D_IMAGE_FORMAT_YUYV [Todo]Fixed value
++        tx_data->data[5] = 1; //number
++        break;
++    case COMCTL_IMAGE_READ_V4L2:
++        tx_data->size = B2SDK_IMREAD_V4L2_SIZE; //40bytes
++        tx_data->com_type = B2SDK_TYPE; //Request Command
++        tx_data->com_order = 0x00; //Not using it in this case
++        tx_data->com_id = ID_IMREAD_V4L2; //Gets the latest image from the monitoring
++        tx_data->trans_id = 0x00000000; //to be set by daemon
++        tx_data->cb_type = 0x00; //Not using it in this case
++        tx_data->time_id = 0x0000; //Not using it in this case
++        tx_data->time_stamp = 0x00000000; //Not using it in this case
++        tx_data->data[0] = (unsigned int)(dev->cmng.source_id); //source id(lower).
++        tx_data->data[1] = (unsigned int)(dev->cmng.source_id >> 32); //source id(upper).
++        tx_data->data[2] = IMREAD_WIDTH; //width [Todo] Fixed value
++        tx_data->data[3] = IMREAD_HIGHT; //height [Todo] Fixed value
++        tx_data->data[4] = IMREAD_FORMT; //format D_IMAGE_FORMAT_YUYV [Todo]Fixed value
++        break;
++    case COMCTL_BEGIN_READDATA:
++        tx_data->size = B2SDK_BEGIN_READING_DATA_SIZE;
++        tx_data->com_type = B2SDK_TYPE;
++        tx_data->com_order = 0x00; //Not using it in this case
++        tx_data->com_id = ID_BEGIN_READING_DATA;
++        tx_data->trans_id = 0x00000000; //to be set by daemon
++        tx_data->cb_type = 0x00; //Not using it in this case
++        tx_data->time_id = 0x0000; //Not using it in this case
++        tx_data->time_stamp = 0x00000000; //Not using it in this case
++        tx_data->data[0] = (unsigned int)(handle); //obj_h(lower).
++        tx_data->data[1] = (unsigned int)(handle >> 32); //obj_h(upper).
++        break;
++    case COMCTL_END_READDATA:
++        tx_data->size = B2SDK_END_READING_DATA_SIZE;
++        tx_data->com_type = B2SDK_TYPE;
++        tx_data->com_order = 0x00; //Not using it in this case
++        tx_data->com_id = ID_END_READING_DATA;
++        tx_data->trans_id = 0x00000000; //to be set by daemon
++        tx_data->cb_type = 0x00; //Not using it in this case
++        tx_data->time_id = 0x0000; //Not using it in this case
++        tx_data->time_stamp = 0x00000000; //Not using it in this case
++        tx_data->data[0] = (unsigned int)(handle); //obj_h(lower).
++        tx_data->data[1] = (unsigned int)(handle >> 32); //obj_h(upper).
++        break;
++    default:
++        break;
++    }
++    
++    return ;
++}
++static int comctl_send_signal(struct comctl_v4l2_dev *dev, int type, unsigned long handle)
++{
++    struct kernel_siginfo info;
++    int ret;
++
++    comctl_gen_packet(dev, type, handle);
++    
++    reinit_completion(&dev->cmng.daemon_ack);
++    
++    /* Sending signal to app */
++    memset(&info, 0, sizeof(struct kernel_siginfo));
++    info.si_signo = dev->cmng.s_id;
++    info.si_code = SI_QUEUE;
++    info.si_int = 1;
++
++    if (dev->cmng.d_task != NULL) {
++        //v4l2_info(&dev->v4l2_dev, "Send signal to daemon (signo[%d],pid[%d])\n",dev->cmng.s_id, dev->cmng.d_task->pid);
++	
++        ret = send_sig_info(dev->cmng.s_id, &info, dev->cmng.d_task);
++        if (ret) {
++            v4l2_err(&dev->v4l2_dev, "[Error]Unable to send signal (ret=%d)\n",ret);
++            return ret;
++        }
++    }
++
++    /* Wait the ack from daemon */
++    if ( wait_for_completion_timeout(&dev->cmng.daemon_ack, COMCTL_WAIT_TIMEOUT * HZ ) == 0) {
++        v4l2_err(&dev->v4l2_dev, "[Error]Timeout! Not respond\n");
++        return -ETIMEDOUT;
++    }
++    else {
++        /* alread received packets */
++    }
++    return 0;
++}
++
++
++static int comctl_g_ctrl(struct file *file, void *priv, struct v4l2_control *vc)
++{
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    /* No need to be operation */
++    v4l2_info(&dev->v4l2_dev, "%s called.\n",__func__);
++    return 0;
++}
++
++static int comctl_s_ctrl(struct file *file, void *priv, struct v4l2_control *vc)
++{
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    /* No need to be operation */
++    v4l2_info(&dev->v4l2_dev, "%s called.\n",__func__);
++    return 0;
++}
++
++static int comctl_g_fmt(struct file *file, void *priv, struct v4l2_format *f)
++{
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++
++    v4l2_info(&dev->v4l2_dev, "%s called.\n",__func__);
++    f->fmt.pix = dev->cmng.pix_format;
++
++    v4l2_info(&dev->v4l2_dev, "%s: Set the current v4l2 format info.\n",__func__);
++
++    return 0;
++}
++
++static int comctl_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
++{
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++
++    /* Check the specific format. */
++    if ((f->fmt.pix.width == 3840) && (f->fmt.pix.height == 2160)) {
++        v4l2_info(&dev->v4l2_dev, "%s: Frame info: 4K(3840x2160) 30fps type\n", __func__);
++    }
++    else if ((f->fmt.pix.width == 1920) && (f->fmt.pix.height == 1080)) {
++        v4l2_info(&dev->v4l2_dev, "%s: Frame info: FHD(1920x1080) 30or60fps type\n", __func__);
++    }
++    else if ((f->fmt.pix.width == 960) && (f->fmt.pix.height == 540)) {
++        v4l2_info(&dev->v4l2_dev, "%s: Frame info: FHD(1920x1080) 30fps type\n", __func__);
++    }
++    else {
++        v4l2_err(&dev->v4l2_dev, "[Error]Set format: Invalid width or height\n");
++        return -EINVAL;
++    }
++    
++    v4l2_info(&dev->v4l2_dev, "%s called.\n",__func__);
++    dev->cmng.pix_format = f->fmt.pix;
++
++    return 0;
++}
++
++static int comctl_g_parm(struct file *file, void *fh, struct v4l2_streamparm *parm)
++{
++
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    
++    v4l2_info(&dev->v4l2_dev, "%s called.\n",__func__);
++    /* Buffer of a single-planar video capture stream */
++    parm->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++    
++    parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
++    parm->parm.capture.readbuffers = 1;
++    
++    parm->parm.capture.timeperframe.numerator = 30;     /*TODO fixed value */
++    parm->parm.capture.timeperframe.denominator = 1000; /*TODO fixed value */
++    return 0;
++}
++
++static int comctl_s_parm(struct file *file, void *fh,struct v4l2_streamparm *parm)
++{
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    /* No need to be operation */
++    v4l2_info(&dev->v4l2_dev, "%s called.\n",__func__);
++    return 0;
++}
++
++static int comctl_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
++{
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    
++    dev->cmng.st_stream_on = true; /* Set status:stream on */
++    
++    /* No need to be operation */
++    v4l2_info(&dev->v4l2_dev, "%s called.\n",__func__);
++    return 0;
++}
++
++static int comctl_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
++{
++    int ret = 0;
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    
++    v4l2_info(&dev->v4l2_dev, "%s called.\n",__func__);
++    
++    /* Stop video capture */
++    ret = comctl_send_signal(dev,COMCTL_STOP_CAPTURE, 0);
++    if ( ret != 0 )
++        v4l2_err(&dev->v4l2_dev, "Failed %s[ret=%d]\n",__func__,ret);
++    else
++        dev->cmng.st_stream_on = false; /* Set status:stream off */
++
++    return ret;
++}
++
++static int comctl_querybuf(struct file *file, void *fh, struct v4l2_buffer *b)
++{
++    int count;
++    
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    
++    count = b->index;
++    if ( b->memory != V4L2_MEMORY_USERPTR) {
++        return -EINVAL;
++    }
++    
++    if ( count >= dev->cmng.req_count ) {
++        return -EINVAL;
++    }
++    
++    b->m.userptr = dev->cmng.bufmng[count].pbuf;
++    v4l2_info(&dev->v4l2_dev, "%s set the userptr to buffer[%d]=0x%lx.\n",__func__,
++        count, dev->cmng.bufmng[count].pbuf);
++    
++    return 0;
++}
++
++static int comctl_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
++{
++    int ret = -1;
++    int count;
++    unsigned long handle;
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    
++    /* EndReadingData */
++    count = b->index;
++    
++    if ( count < dev->cmng.req_count ) {
++        handle = dev->cmng.bufmng[count].handle;
++        ret = comctl_send_signal(dev,COMCTL_END_READDATA, handle);
++    
++        if ( ret != 0 )
++            v4l2_err(&dev->v4l2_dev, "Failed %s[ret=%d]\n",__func__,ret);
++        else 
++            ;//v4l2_info(&dev->v4l2_dev, "%s released query buf.\n",__func__);
++    }
++    else 
++        v4l2_err(&dev->v4l2_dev, "Failed %s invalid count [%d]\n",__func__,count);
++
++    b->length = (IMREAD_WIDTH * IMREAD_HIGHT);
++    return ret;
++}
++
++static int comctl_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
++{
++    int ret = 0;
++    int count;
++    unsigned long handle;
++    unsigned long buff;
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    
++    /* Imread */
++//    ret = comctl_send_signal(dev,COMCTL_IMAGE_READ, 0);
++    ret = comctl_send_signal(dev,COMCTL_IMAGE_READ_V4L2, 0);
++    if ( ret != 0 )
++        v4l2_err(&dev->v4l2_dev, "Failed %s(imr)[ret=%d]\n",__func__,ret);
++
++    ret = dev->cmng.sync_data->data[0];
++    if (ret == 0) {
++        handle = (unsigned long)dev->cmng.sync_data->data[2] << 32 | dev->cmng.sync_data->data[1];
++    }
++    else {
++        v4l2_err(&dev->v4l2_dev, "[Error]%s imread error: %d\n",__func__,ret);
++        return -1;
++    }
++
++    ret = dev->cmng.sync_data->data[0];
++    if (ret == 0) {
++        /* BeginReadingData */
++        ret = comctl_send_signal(dev,COMCTL_BEGIN_READDATA, handle);
++        if ( ret != 0 )
++            v4l2_err(&dev->v4l2_dev, "Failed %s(brd)[ret=%d]\n",__func__,ret);
++        else {
++            ;//v4l2_info(&dev->v4l2_dev, "%s locked query buf.\n",__func__);
++            buff = (unsigned long)dev->cmng.sync_data->data[1] << 32 | dev->cmng.sync_data->data[0];
++            for (count = 0; count < dev->cmng.req_count; count++) {
++                if ( buff == dev->cmng.bufmng[count].pbuf ) {   //serach ok?
++                    dev->cmng.bufmng[count].handle = handle;    //Reset handle from imread
++                    //v4l2_info(&dev->v4l2_dev, "%s handle[%d]:0x%lx is set.\n",__func__, count, handle);
++                    break;
++                }
++            }
++            if (count == dev->cmng.req_count) {
++                v4l2_err(&dev->v4l2_dev, "CouldNot find the buff\n",__func__);
++                return -1;
++            }
++            
++            b->index = count;
++            
++        }
++    }
++    
++    return ret;
++}
++
++static int comctl_reqbufs(struct file *file, void *fh, struct v4l2_requestbuffers *rb)
++{
++    int ret = 0;
++    int count;
++    unsigned long source;
++    unsigned long handle;
++    unsigned long buff;
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    
++    count = dev->cmng.req_count = rb->count;
++    
++    dev->cmng.st_stream_on = true;
++    
++    /* Start video capture */
++    ret = comctl_send_signal(dev,COMCTL_START_CAPTURE, 0);
++    if ( ret != 0 )
++        v4l2_err(&dev->v4l2_dev, "[Error]Failed %s(svc)[ret=%d]\n",__func__,ret);
++    
++    source = (unsigned long)dev->cmng.sync_data->data[1] << 32 | dev->cmng.sync_data->data[0];
++    v4l2_info(&dev->v4l2_dev, "%s source id: 0x%lx\n",__func__,source);
++    dev->cmng.source_id = source; //set source_id from start video capture
++    
++    for ( count=0; count<dev->cmng.req_count; count++) {
++        reinit_completion(&dev->cmng.daemon_callback);
++        
++        /* Wait the callback from daemon */
++        if ( wait_for_completion_timeout(&dev->cmng.daemon_callback, COMCTL_WAIT_TIMEOUT * HZ ) == 0) {
++            v4l2_err(&dev->v4l2_dev, "[Error]Timeout! %s(callback)\n",__func__);
++            return -1;
++        }
++
++        /* Imread */
++//        ret = comctl_send_signal(dev,COMCTL_IMAGE_READ, 0);
++        ret = comctl_send_signal(dev,COMCTL_IMAGE_READ_V4L2, 0);
++        if ( ret != 0 ) {
++            v4l2_err(&dev->v4l2_dev, "[Error]Failed %s(imr)[ret=%d]\n",__func__,ret);
++            return -1;
++        }
++        
++        ret = dev->cmng.sync_data->data[0];
++        if (ret == 0) {
++            handle = (unsigned long)dev->cmng.sync_data->data[2] << 32 | dev->cmng.sync_data->data[1];
++        }
++        else {
++            v4l2_err(&dev->v4l2_dev, "[Error]%s imread error: %d\n",__func__,ret);
++            return -1;
++        }
++        
++        /* BeginReadingData */
++        ret = comctl_send_signal(dev,COMCTL_BEGIN_READDATA, handle);
++        if ( ret != 0 ) {
++            v4l2_err(&dev->v4l2_dev, "[Error]Failed %s(brd)[ret=%d]\n",__func__,ret);
++            return -1;
++        }
++        else {
++            buff = (unsigned long)dev->cmng.sync_data->data[1] << 32 | dev->cmng.sync_data->data[0];
++            dev->cmng.bufmng[count].handle = handle;    //set handle from imread
++            dev->cmng.bufmng[count].pbuf = buff;        //set buffer addr
++            v4l2_info(&dev->v4l2_dev, "%s handle[%d] 0x%lx, buffer addr[%d] 0x%lx\n",__func__, count, handle,count, buff);
++        }
++    }
++    
++    dev->cmng.st_stream_on = false;
++    
++    return ret;
++}
++
++static int comctl_querycap(struct file *file, void *priv, struct v4l2_capability *cap)
++{
++    strlcpy(cap->driver, COMCTL_MODULE_NAME, sizeof(cap->driver));
++    strlcpy(cap->card, COMCTL_MODULE_NAME, sizeof(cap->card));
++    snprintf(cap->bus_info, sizeof(cap->bus_info),
++            "platform:%s", COMCTL_MODULE_NAME);
++
++    return 0;
++}
++
++static const struct v4l2_ioctl_ops comctl_v4l2_ioctl_ops = {
++    .vidioc_querycap        = comctl_querycap,
++    .vidioc_g_ctrl          = comctl_g_ctrl,
++    .vidioc_s_ctrl          = comctl_s_ctrl,
++    .vidioc_g_fmt_vid_cap   = comctl_g_fmt,
++    .vidioc_s_fmt_vid_cap   = comctl_s_fmt,
++    .vidioc_g_parm          = comctl_g_parm,
++    .vidioc_s_parm          = comctl_s_parm,
++    .vidioc_streamon        = comctl_streamon,
++    .vidioc_streamoff       = comctl_streamoff,
++    
++    .vidioc_querybuf        = comctl_querybuf,
++    .vidioc_qbuf            = comctl_qbuf,
++    .vidioc_dqbuf           = comctl_dqbuf,
++    .vidioc_reqbufs         = comctl_reqbufs,
++};
++
++
++static void comctl_v4l2_dev_release(struct v4l2_device *v4l2_dev)
++{
++    struct comctl_v4l2_dev *dev = container_of(v4l2_dev, struct comctl_v4l2_dev, v4l2_dev);
++    v4l2_device_unregister(&dev->v4l2_dev);
++    kfree(dev);
++}
++
++static int comctl_v4l2_fop_release(struct file *file)
++{
++    struct comctl_v4l2_dev *dev = video_drvdata(file);
++    struct video_device *vdev = video_devdata(file);
++
++    mutex_lock(&dev->mutex);
++    if (v4l2_fh_is_singular_file(file) && !video_is_registered(vdev))
++        v4l2_info(&dev->v4l2_dev, "reconnect\n");
++    mutex_unlock(&dev->mutex);
++
++    return v4l2_fh_release(file);
++}
++
++
++static const struct v4l2_file_operations comctl_v4l2_fops = {
++    .owner          = THIS_MODULE,
++    .unlocked_ioctl = video_ioctl2,
++    .open           = v4l2_fh_open,
++    .release        = comctl_v4l2_fop_release,
++    .poll           = comctl_v4l2_poll,
++};
++
++static const struct video_device v4l2_videodev = {
++    .fops       = &comctl_v4l2_fops,
++    .ioctl_ops  = &comctl_v4l2_ioctl_ops,
++    .release    = video_device_release_empty,
++};
++
++
++static int comctl_probe(struct platform_device *pdev)
++{
++    int ret;
++    struct comctl_v4l2_dev *dev;
++    struct video_device *vdev;
++
++    /* Allocate main comctl state structure */
++    dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
++    if (!dev)
++        return -ENOMEM;
++    
++    snprintf(dev->v4l2_dev.name, sizeof(dev->v4l2_dev.name),
++            "%s%01d", COMCTL_MODULE_NAME, COMCTL_VIDEO_DEVICE_NUM);
++    ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
++    if (ret) {
++        kfree(dev);
++        return ret;
++    }
++    
++    dev->v4l2_dev.release = comctl_v4l2_dev_release;
++
++    /* initialize locks */
++    spin_lock_init(&dev->slock);
++    mutex_init(&dev->mutex);
++
++    /* Initialize completion */
++    init_completion(&dev->cmng.daemon_ack);
++    init_completion(&dev->cmng.daemon_callback);
++    
++    /* Buffer setting */
++    dev->cmng.sync_data = (comctl_payload_st*)buf_sync;
++    dev->cmng.async_data = (comctl_payload_st*)buf_async;
++    
++    /* Default format */
++    dev->cmng.pix_format = defaut_fmt[0];
++    dev->cmng.st_stream_on = false;
++    dev->cmng.req_count  = 5;
++    
++    vdev = &dev->video_dev;
++    snprintf(vdev->name, sizeof(vdev->name), "%s-%01d",
++                    "comctl_video", COMCTL_VIDEO_DEVICE_NUM);
++    *vdev = v4l2_videodev;
++    vdev->v4l2_dev = &dev->v4l2_dev;
++    vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE;
++
++    /*
++     * Provide a mutex to v4l2 core. It will be used to protect
++     * all fops and v4l2 ioctls.
++     */
++    vdev->lock = &dev->mutex;
++    video_set_drvdata(vdev, dev);
++
++    ret = video_register_device(vdev, VFL_TYPE_VIDEO, COMCTL_VIDEO_DEVICE_NUM);
++    if (ret < 0) {
++        v4l2_err(&dev->v4l2_dev, "Failed to register video device\n");
++        video_device_release(vdev);
++        video_unregister_device(&dev->video_dev);
++        v4l2_device_unregister(&dev->v4l2_dev);
++        kfree(dev);
++        return ret;
++    }
++
++    v4l2_info(&dev->v4l2_dev, "V4L2 capture device registered as '%s'\n",
++            video_device_node_name(vdev));
++
++    /* Add it to device list */
++    comctl_v4l2_devs[0] = dev;
++    
++    printk(KERN_INFO "%s is successfully.\n",__func__);
++    return 0;
++}
++
++static int comctl_remove(struct platform_device *pdev)
++{
++    struct comctl_v4l2_dev *dev = comctl_v4l2_devs[0];
++    video_unregister_device(&dev->video_dev);
++    printk(KERN_INFO "%s is successfully.\n",__func__);
++    return 0;
++}
++
++static void v4l2_pdev_release(struct device *dev)
++{
++    printk(KERN_INFO "%s is successfully.\n",__func__);
++    return;
++}
++
++
++static struct platform_device v4l2_pdev = {
++    .name = COMCTL_MODULE_NAME,
++    .dev.release = v4l2_pdev_release,
++};
++
++static struct platform_driver v4l2_pdrv = {
++    .probe = comctl_probe,
++    .remove = comctl_remove,
++    .driver = {
++        .name = COMCTL_MODULE_NAME,
++    },
++};
++
++static int comctl_init(void)
++{
++    int ret;
++
++    ret = platform_device_register(&v4l2_pdev);
++    if (ret)
++        return ret;
++    
++    ret = platform_driver_register(&v4l2_pdrv);
++    if (ret) {
++        platform_device_unregister(&v4l2_pdev);
++        return ret;
++    }
++    
++    ret = isp_accquisition_device_init();
++    
++    return ret;
++}
++
++static void comctl_exit(void)
++{
++    platform_driver_unregister(&v4l2_pdrv);
++    platform_device_unregister(&v4l2_pdev);
++    isp_accquisition_device_exit();
++}
++
++module_init(comctl_init);
++module_exit(comctl_exit);
++
++MODULE_AUTHOR("Shuichi Sueki <shuichi.sueki.zc@bp.renesas.com>");
++MODULE_DESCRIPTION("Renesas RZV2M comctl camera host driver");
++MODULE_LICENSE("GPL v2");
+diff --git b/drivers/media/platform/rzv2m-comctl/rzv2m-comctl.h b/drivers/media/platform/rzv2m-comctl/rzv2m-comctl.h
+new file mode 100755
+index 0000000..57e8a2b
+--- /dev/null
++++ b/drivers/media/platform/rzv2m-comctl/rzv2m-comctl.h
+@@ -0,0 +1,158 @@
++/*
++ * V4L2 driver for the Renesas RZ/V2M Comctl
++ *
++ * Copyright (C) 2021 Renesas Electronics Corporation
++ *
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; version 2 of the License.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef __RZ_COMCTL__
++#define __RZ_COMCTL__
++
++#include <linux/fb.h>
++#include <linux/workqueue.h>
++#include <linux/completion.h>
++#include <media/cec.h>
++#include <media/videobuf2-v4l2.h>
++#include <media/v4l2-device.h>
++#include <media/v4l2-dev.h>
++#include <media/v4l2-ctrls.h>
++#include <media/tpg/v4l2-tpg.h>
++
++#include <linux/ioctl.h>
++
++#define COMCTL_MODULE_NAME "v4l2-comctl"
++#define COMCTL_VIDEO_DEVICE_NUM 0   /*Fixed value */
++
++#define COMCTL_WAIT_TIMEOUT 5   /*sec*/
++#define ACK_COMMAND_RESPONSE    (0x01)
++#define ACK_CALLBACK            (0x04)
++
++/* Packet size */
++/* NOTE: Need to be same as the R_COMCTL_MAX_RPMSG_BUFF_SIZE value */
++/*       See comctl_common.h for more information */
++#define RPMSG_BUFFER_SIZE   512
++#define R_COMCTL_RPMSG_HEADER_LEN   100
++
++#define COMCTLD_PACKET_SIZE (RPMSG_BUFFER_SIZE - R_COMCTL_RPMSG_HEADER_LEN)
++
++/* Todo:Current imread size is fixed value. */
++#define IMREAD_WIDTH    640
++#define IMREAD_HIGHT    480
++#define IMREAD_FORMT    6   //YUV422
++
++/* Packet info */
++#define B2SDK_TYPE                  (0x00)          //B2SDK command (without callback) type
++
++#define B2SDK_STARTCAPTURE_SIZE     (0x001C)        //B_IMAGE_StartVideoCapture command size
++#define RES_STARTCAPTURE_SIZE       (0x0020)        //B_IMAGE_StartVideoCapture command response size
++#define CBK_STARTCAPTURE_SIZE       (0x0018)        //B_IMAGE_StartVideoCapture callback size
++
++#define B2SDK_STOPCAPTURE_SIZE      (0x0020)        //B_IMAGE_StopVideoCapture command size
++#define RES_STOPCAPTURE_SIZE        (0x0018)        //B_IMAGE_StopVideoCapture command response size
++
++#define B2SDK_IMREAD_SIZE           (0x002C)        //B_IMAGE_Imread command size
++#define RES_IMREAD_SIZE             (0x002C)        //B_IMAGE_Imread command response size
++#define B2SDK_IMREAD_V4L2_SIZE      (0x0028)        //B_IMAGE_ImreadV4L2 command size
++#define RES_IMREAD_V4L2_SIZE        (0x002C)        //B_IMAGE_ImreadV4L2 command response size
++
++#define B2SDK_BEGIN_READING_DATA_SIZE   (0x001C)    //B_OBJ_BeginReadingData command size
++#define RES_BEGIN_READING_DATA_SIZE     (0x001C)    //B_OBJ_BeginReadingData response size
++
++#define B2SDK_END_READING_DATA_SIZE     (0x001C)    //B_OBJ_EndReadingData command size
++#define RES_END_READING_DATA_SIZE       (0x0018)    //B_OBJ_EndReadingData response size
++
++/* Command ID */
++#define ID_START_VIDEO_CAPTURE      ((0x00010000) | (0xFF << 24))    //B_IMAGE_StartVideoCapture Command ID
++#define ID_IMREAD                   ((0x00010001) | (0xFF << 24))    //B_IMAGE_Imread Command ID
++#define ID_STOP_VIDEO_CAPTURE       ((0x00010002) | (0xFF << 24))    //B_IMAGE_StopVideoCapture Command ID
++#define ID_IMREAD_V4L2              ((0x0001002E) | (0xFF << 24))    //B_IMAGE_ImreadV4L2 Command ID
++#define ID_BEGIN_READING_DATA       ((0x00070000) | (0xFF << 24))    //B_OBJ_BeginReadingData ID
++#define ID_END_READING_DATA         ((0x00070001) | (0xFF << 24))    //B_OBJ_EndReadingData ID
++
++
++
++/* Signal number for daemon connection */
++#define COMCTL_SIGNAL_NUM   44
++
++/* IOCTL command */
++#define IOCTL_COMCTLD_REGISTER  _IOW('d', 1, pid_t *)
++#define IOCTL_COMCTLD_SENDDATA  _IOW('d', 2, comctl_payload_st *)
++#define IOCTL_COMCTLD_RCIEVEDATA _IOR('d', 3, comctl_payload_st *)
++#define IOCTL_COMCTLD_SENDDATA_CB _IOW('d', 4, comctl_payload_st *)
++
++enum api_type {
++    COMCTL_START_CAPTURE,
++    COMCTL_STOP_CAPTURE,
++    COMCTL_IMAGE_READ,
++    COMCTL_IMAGE_READ_V4L2,
++    COMCTL_BEGIN_READDATA,
++    COMCTL_END_READDATA,
++};
++
++typedef struct command_payload {
++    signed short size;
++    unsigned char com_type;
++    unsigned char com_order;
++    unsigned int com_id;
++    unsigned int trans_id;
++    unsigned short cb_type;
++    unsigned short time_id;
++    unsigned int time_stamp;
++    unsigned int data[];
++} comctl_payload_st;
++
++struct comctl_buf_mng {
++    unsigned long handle;
++    unsigned long pbuf;
++};
++
++struct comctl_mng {
++    struct task_struct *d_task;         //Daemon task
++    unsigned int s_id;                  //Target signal
++    bool st_stream_on;                  //Stream On/Off status
++    unsigned int req_count;             //frame number
++    struct v4l2_pix_format pix_format;  //Pix format info.
++    unsigned long source_id;            //source_id
++    struct comctl_buf_mng bufmng[10];   //handle, address
++    struct completion daemon_ack;
++    struct completion daemon_callback;
++    comctl_payload_st *sync_data;       //Packet data for sync
++    comctl_payload_st *async_data;      //Packet data for async
++};
++
++struct comctl_v4l2_dev {
++    struct v4l2_device v4l2_dev;
++    struct video_device video_dev;
++    spinlock_t slock;
++    struct mutex mutex;
++    
++    struct comctl_mng cmng;
++};
++
++struct comctl_dev {
++    dev_t comctl_devt;
++    struct class *dev_class;
++    struct cdev comctl_cdev;
++};
++
++struct v4l2_pix_format defaut_fmt[] = {
++    {
++        .width = 1920,
++        .height = 1080,
++        .sizeimage = 1920 * 1280 * 5,
++        .pixelformat = V4L2_PIX_FMT_RGB24,
++        .field = V4L2_FIELD_NONE,
++    },
++};
++
++
++#endif

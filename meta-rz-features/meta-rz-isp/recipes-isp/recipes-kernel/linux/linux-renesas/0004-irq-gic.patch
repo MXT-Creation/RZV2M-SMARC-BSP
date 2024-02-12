@@ -1,0 +1,36 @@
+--- ./drivers/irqchip/irq-gic-v3.c.org	2022-07-04 14:15:25.501386432 +0900
++++ ./drivers/irqchip/irq-gic-v3.c	2022-07-04 14:16:05.375255137 +0900
+@@ -1217,13 +1217,13 @@
+ 				  gic_starting_cpu, NULL);
+ 
+ 	/* Register all 8 non-secure SGIs */
+-	base_sgi = __irq_domain_alloc_irqs(gic_data.domain, -1, 8,
++	base_sgi = __irq_domain_alloc_irqs(gic_data.domain, -1, 10,
+ 					   NUMA_NO_NODE, &sgi_fwspec,
+ 					   false, NULL);
+ 	if (WARN_ON(base_sgi <= 0))
+ 		return;
+ 
+-	set_smp_ipi_range(base_sgi, 8);
++	set_smp_ipi_range(base_sgi, 10);
+ }
+ 
+ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
+--- ./drivers/irqchip/irq-gic.c.org	2022-07-04 14:12:16.043387070 +0900
++++ ./drivers/irqchip/irq-gic.c	2022-07-04 14:15:03.398564294 +0900
+@@ -879,13 +879,13 @@
+ 				  "irqchip/arm/gic:starting",
+ 				  gic_starting_cpu, NULL);
+ 
+-	base_sgi = __irq_domain_alloc_irqs(gic_data[0].domain, -1, 8,
++	base_sgi = __irq_domain_alloc_irqs(gic_data[0].domain, -1, 10,
+ 					   NUMA_NO_NODE, &sgi_fwspec,
+ 					   false, NULL);
+ 	if (WARN_ON(base_sgi <= 0))
+ 		return;
+ 
+-	set_smp_ipi_range(base_sgi, 8);
++	set_smp_ipi_range(base_sgi, 10);
+ }
+ #else
+ #define gic_smp_init()		do { } while(0)
