@@ -1,0 +1,264 @@
+From 348e85dda3797bd259542c4a4c50b816a95f3354 Mon Sep 17 00:00:00 2001
+From: Tai Huynh <tai.huynh.cp@renesas.com>
+Date: Fri, 12 May 2023 09:57:29 +0700
+Subject: [PATCH] usb-phy: support: v2m
+
+Define USB-PHY support for RZV2M
+
+Signed-off-by: Tai Huynh <tai.huynh.cp@renesas.com>
+---
+ board/renesas/rzv2m-dev/evk_usbtest.h |  78 +++++++++++++++
+ board/renesas/rzv2m-dev/rzv2m-dev.c   | 137 ++++++++++++++++++++++++++
+ 2 files changed, 215 insertions(+)
+ create mode 100644 board/renesas/rzv2m-dev/evk_usbtest.h
+
+diff --git a/board/renesas/rzv2m-dev/evk_usbtest.h b/board/renesas/rzv2m-dev/evk_usbtest.h
+new file mode 100644
+index 0000000000..9a055b0f80
+--- /dev/null
++++ b/board/renesas/rzv2m-dev/evk_usbtest.h
+@@ -0,0 +1,78 @@
++/*******************************************************************************
++* DISCLAIMER
++* This software is supplied by Renesas Electronics Corporation and is only
++* intended for use with Renesas products. No other uses are authorized. This
++* software is owned by Renesas Electronics Corporation and is protected under
++* all applicable laws, including copyright laws.
++* THIS SOFTWARE IS PROVIDED "AS IS" AND RENESAS MAKES NO WARRANTIES REGARDING
++* THIS SOFTWARE, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING BUT NOT
++* LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
++* AND NON-INFRINGEMENT. ALL SUCH WARRANTIES ARE EXPRESSLY DISCLAIMED.
++* TO THE MAXIMUM EXTENT PERMITTED NOT PROHIBITED BY LAW, NEITHER RENESAS
++* ELECTRONICS CORPORATION NOR ANY OF ITS AFFILIATED COMPANIES SHALL BE LIABLE
++* FOR ANY DIRECT, INDIRECT, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES FOR
++* ANY REASON RELATED TO THIS SOFTWARE, EVEN IF RENESAS OR ITS AFFILIATES HAVE
++* BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
++* Renesas reserves the right, without notice, to make changes to this software
++* and to discontinue the availability of this software. By using this software,
++* you agree to the additional terms and conditions found by accessing the
++* following link:
++* http://www.renesas.com/disclaimer
++* Copyright (C) 2022 Renesas Electronics Corporation. All rights reserved.
++*******************************************************************************/ 
++/*******************************************************************************
++ * File Name    : evk_usbtest.h
++ ******************************************************************************/
++
++#ifndef EVK_USBTEST_H_
++#define EVK_USBTEST_H_
++
++#define USBTEST_BASE_ADDRESS     (0xA3F90000)
++
++#define USBTEST_RESET1		(0x0000)+USBTEST_BASE_ADDRESS
++#define USBTEST_RESET2		(0x0004)+USBTEST_BASE_ADDRESS
++#define USBTEST_PIPE_MON1	(0x0124)+USBTEST_BASE_ADDRESS
++#define USBTEST_CLKRST2		(0x0304)+USBTEST_BASE_ADDRESS
++#define USBTEST_CLKRST3		(0x0308)+USBTEST_BASE_ADDRESS
++
++#define USB_TEST_REG_RESET1_R     USBTEST_BASE_ADDRESS + (0x000)
++#define USB_TEST_REG_RESET2_R     USBTEST_BASE_ADDRESS + (0x004)
++#define USB_TEST_REG_PIPE_MON1_R  USBTEST_BASE_ADDRESS + (0x124)
++#define USB_TEST_REG_CLKRST2_R    USBTEST_BASE_ADDRESS + (0x304)
++#define USB_TEST_REG_CLKRST3_R    USBTEST_BASE_ADDRESS + (0x308)
++
++#define USB_TEST_REG_PRMCTRL1_R   USBTEST_BASE_ADDRESS + (0xC00)
++#define USB_TEST_REG_PRMCTRL5_R   USBTEST_BASE_ADDRESS + (0xC10)
++
++#define USB_TEST_REG_CRA1_R       USBTEST_BASE_ADDRESS + (0x900)
++#define USB_TEST_REG_CRA2_R       USBTEST_BASE_ADDRESS + (0x904)
++#define USB_TEST_REG_CRA3_R       USBTEST_BASE_ADDRESS + (0x908)
++#define USB_TEST_REG_CRA4_R       USBTEST_BASE_ADDRESS + (0x90C)
++#define USB_TEST_REG_CRA5_R       USBTEST_BASE_ADDRESS + (0x910)
++#define USB_TEST_REG_CRA_MON1_R   USBTEST_BASE_ADDRESS + (0x914)
++#define USB_TEST_REG_CRA_MON2_R   USBTEST_BASE_ADDRESS + (0x918)
++
++/* PHY Register offset */
++#define USB_PHY_REG_LANE0_DIG_OVRD_DRV_LO       (0x1002)
++
++#define USB_PHY_REG_RX_OVRD_IN_HI               (0x1006)
++    #define USB_PHY_RX_OVRD_IN_HI_RX_EQ_EN      (0x1 << 6)
++    #define USB_PHY_RX_OVRD_IN_HI_RX_EQ_EN_OVRD (0x1 << 7)
++    #define USB_PHY_RX_OVRD_IN_HI_RX_EQ_MASK    (0x7 << 8)
++    #define USB_PHY_RX_OVRD_IN_HI_RX_EQ_SHIFT   (8)
++    #define USB_PHY_RX_OVRD_IN_HI_RX_EQ_OVRD    (0x1 << 11)
++    
++#define CLKRST2_REF_USE_PAD     (0x01 << 0)
++
++#define PORTRESET0_ODEN         (0x01 << 9)
++#define PIPE0_RESET_N_ODEN      (0x01 << 8)
++#define PHY_RESET_REG           (0x01 << 2)
++#define PORTRESET0_REG          (0x01 << 1)
++#define PIPE0_RESET_REG         (0x01 << 0)
++
++#define UT_RESET2_REF_SSP_EN    (0x01 << 0)
++
++#define PIPE0_PHYSTATUS         (0x01 << 7)
++
++
++#endif  /* !defined(EVK_USBTEST_H_) */
+diff --git a/board/renesas/rzv2m-dev/rzv2m-dev.c b/board/renesas/rzv2m-dev/rzv2m-dev.c
+index 68c705cc4d..6dd4252098 100644
+--- a/board/renesas/rzv2m-dev/rzv2m-dev.c
++++ b/board/renesas/rzv2m-dev/rzv2m-dev.c
+@@ -27,10 +27,16 @@
+ #include <asm/system.h>
+ #include "evk_common.h"
+ #include "evk_cmn_cpg.h"
++#include "evk_usbtest.h"
+ #include "evk_sys.h"
+ #include "evk_psc.h"
+ #include <init.h>
+ 
++static void usb_test_set_addr_phy_reg(uint16_t offset);
++static uint16_t usb_test_read_phy_reg(uint16_t offset);
++static void usb_test_write_phy_reg(uint16_t offset, uint16_t write_data);
++static void evk_usb_phy_setting(void);
++
+ /*
+ TARGET_BANK0_UNIT_LINUX settings as follows:
+                BA_WE00 | BA00  //EMM
+@@ -214,6 +220,19 @@ static void usb_init(void)
+ 	/* usb clock on */
+ 	CPG_SetClockCtrl(4, 0x0070, 0x0070);
+ 	CMN_DelayInUS(1);//125ns
++
++	//USB TEST Module initialize
++	CMN_REG_Write32(USBTEST_RESET2,  0x00000001);
++	CMN_DelayInUS(10);
++	CMN_REG_Write32(USBTEST_CLKRST2, 0x00000005);
++	CMN_REG_Write32(USBTEST_CLKRST2, 0x00000004);
++	CMN_DelayInUS(20);
++	CMN_REG_Write32(USBTEST_RESET1,  0x00000300);
++	CMN_REG_Write32(USBTEST_RESET1,  0x00000000);
++	CMN_DelayInUS(75);
++
++	/* usb phy setting */
++	evk_usb_phy_setting();
+ }
+ 
+ static void iic_init(void)
+@@ -449,3 +468,121 @@ void board_cleanup_before_linux(void)
+        SYS_WriteReg(SYS_DRP_BANK, TARGET_DRP_UNIT_LINUX);
+ 
+ }
++
++static void usb_test_set_addr_phy_reg(uint16_t offset)
++{
++    CMN_REG_Write32(USB_TEST_REG_CRA5_R,  offset);
++    CMN_REG_Write32(USB_TEST_REG_CRA1_R,  0x1);
++
++    while (0x01 != (CMN_REG_Read32(USB_TEST_REG_CRA_MON1_R) & 0x01))
++    {
++        ;
++    }
++
++    CMN_REG_Write32(USB_TEST_REG_CRA1_R,0);
++
++    while (0x00 != (CMN_REG_Read32(USB_TEST_REG_CRA_MON1_R) & 0x01))
++    {
++        ;
++    }
++}
++
++
++static uint16_t usb_test_read_phy_reg(uint16_t offset)
++{
++    uint16_t read_data;
++
++    usb_test_set_addr_phy_reg(offset);
++
++    CMN_REG_Write32(USB_TEST_REG_CRA3_R,0x1);
++
++    while (0x01 != (CMN_REG_Read32(USB_TEST_REG_CRA_MON1_R) & 0x01))
++    {
++        ;
++    }
++
++    read_data = (uint16_t)CMN_REG_Read32(USB_TEST_REG_CRA_MON2_R);
++
++    CMN_REG_Write32(USB_TEST_REG_CRA3_R,0x0);
++
++    while (0x00 != (CMN_REG_Read32(USB_TEST_REG_CRA_MON1_R) & 0x01))
++    {
++        ;
++    }
++
++    return read_data;
++}
++
++
++static void usb_test_write_phy_reg(uint16_t offset, uint16_t write_data)
++{
++    usb_test_set_addr_phy_reg(offset);
++
++    CMN_REG_Write32(USB_TEST_REG_CRA5_R,write_data);
++    CMN_REG_Write32(USB_TEST_REG_CRA2_R,0x1);
++
++    while (0x01 != (CMN_REG_Read32(USB_TEST_REG_CRA_MON1_R) & 0x01))
++    {
++        ;
++    }
++
++    CMN_REG_Write32(USB_TEST_REG_CRA2_R,0x0);
++
++    while (0x00 != (CMN_REG_Read32(USB_TEST_REG_CRA_MON1_R) & 0x01))
++    {
++        ;
++    }
++
++    CMN_REG_Write32(USB_TEST_REG_CRA4_R,0x1);
++
++    while (0x01 != (CMN_REG_Read32(USB_TEST_REG_CRA_MON1_R) & 0x01))
++    {
++        ;
++    }
++
++    CMN_REG_Write32(USB_TEST_REG_CRA4_R,0x0);
++
++    while (0x00 != (CMN_REG_Read32(USB_TEST_REG_CRA_MON1_R) & 0x01))
++    {
++        ;
++    }
++}
++
++static void evk_usb_phy_setting(void)
++{
++    uint32_t reg_tmp;
++    uint16_t phy_reg_tmp;
++    uint32_t gs_usbtest_tx_amp;
++    uint32_t gs_usbtest_crt1;
++    uint16_t eq_setting;
++
++    gs_usbtest_tx_amp = 3;
++    gs_usbtest_crt1   = 0x7204;
++    eq_setting        = 1;
++
++    /* Phy Preemphasis setting */
++    reg_tmp = CMN_REG_Read32(USB_TEST_REG_PRMCTRL5_R);
++    reg_tmp &= (~0x07);
++    reg_tmp |= (gs_usbtest_tx_amp << 1);
++    CMN_REG_Write32(USB_TEST_REG_PRMCTRL5_R,reg_tmp);
++
++    /* Phy Tx Swing full, vboost level */
++    CMN_REG_Write32(USB_TEST_REG_PRMCTRL1_R,gs_usbtest_crt1);
++
++    phy_reg_tmp = usb_test_read_phy_reg(USB_PHY_REG_RX_OVRD_IN_HI);
++    phy_reg_tmp &= ~USB_PHY_RX_OVRD_IN_HI_RX_EQ_EN;
++    usb_test_write_phy_reg(USB_PHY_REG_RX_OVRD_IN_HI, phy_reg_tmp);
++
++    phy_reg_tmp  = usb_test_read_phy_reg(USB_PHY_REG_RX_OVRD_IN_HI);
++    phy_reg_tmp |= USB_PHY_RX_OVRD_IN_HI_RX_EQ_EN_OVRD;
++    usb_test_write_phy_reg(USB_PHY_REG_RX_OVRD_IN_HI, phy_reg_tmp);
++
++    phy_reg_tmp  = usb_test_read_phy_reg(USB_PHY_REG_RX_OVRD_IN_HI);
++    phy_reg_tmp &= ~USB_PHY_RX_OVRD_IN_HI_RX_EQ_MASK;
++    phy_reg_tmp |= (eq_setting << USB_PHY_RX_OVRD_IN_HI_RX_EQ_SHIFT);
++    usb_test_write_phy_reg(USB_PHY_REG_RX_OVRD_IN_HI, phy_reg_tmp);
++
++    phy_reg_tmp  = usb_test_read_phy_reg(USB_PHY_REG_RX_OVRD_IN_HI);
++    phy_reg_tmp |= USB_PHY_RX_OVRD_IN_HI_RX_EQ_OVRD;
++    usb_test_write_phy_reg(USB_PHY_REG_RX_OVRD_IN_HI, phy_reg_tmp);
++}
+-- 
+2.25.1
+
