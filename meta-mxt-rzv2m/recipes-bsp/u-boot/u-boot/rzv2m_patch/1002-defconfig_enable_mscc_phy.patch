@@ -1,0 +1,13 @@
+diff --git a/configs/r9a09g011gbg_rzv2m_defconfig b/configs/r9a09g011gbg_rzv2m_defconfig
+index 2c33a5b9..48e8b44d 100644
+--- a/configs/r9a09g011gbg_rzv2m_defconfig
++++ b/configs/r9a09g011gbg_rzv2m_defconfig
+@@ -62,7 +62,7 @@ CONFIG_MMC_IO_VOLTAGE=y
+ CONFIG_MMC_UHS_SUPPORT=y
+ CONFIG_MMC_HS200_SUPPORT=y
+ CONFIG_RENESAS_SDHI=y
+-CONFIG_PHY_REALTEK=y
++CONFIG_PHY_MSCC=y
+ CONFIG_BITBANGMII=y
+ CONFIG_DM_ETH=y
+ CONFIG_RENESAS_RAVB=y

@@ -1,0 +1,23 @@
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g011gbg.dtsi b/arch/arm64/boot/dts/renesas/r9a09g011gbg.dtsi
+index b961e0d63..c47efb690 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g011gbg.dtsi
++++ b/arch/arm64/boot/dts/renesas/r9a09g011gbg.dtsi
+@@ -514,7 +514,8 @@ uart1: serial@a4040080 {
+ 
+         avb: ethernet@a3300000 {
+             compatible = "renesas,etheravb-r8arzv2m",
+-                     "renesas,etheravb-rcar-gen3";
++                     "renesas,etheravb-rcar-gen3",
++                     "ethernet-phy-id0007.0770";
+             reg = <0 0xa3300000 0 0x800>;
+             interrupts = <GIC_SPI 251 IRQ_TYPE_LEVEL_HIGH>,
+                      <GIC_SPI 252 IRQ_TYPE_LEVEL_HIGH>,
+@@ -556,7 +557,7 @@ GIC_SPI 278 IRQ_TYPE_LEVEL_HIGH>,
+             resets = <&cpg 311>;
+             renesas,no-ether-link;
+             phy-handle = <&phy0>;
+-            phy-mode = "rgmii";
++            phy-mode = "gmii";
+             #address-cells = <1>;
+             #size-cells = <0>;
+             status = "disable";

@@ -1,0 +1,40 @@
+diff --git a/drivers/net/phy/mscc/mscc_main.c b/drivers/net/phy/mscc/mscc_main.c
+index 41a410124..f934d81c2 100644
+--- a/drivers/net/phy/mscc/mscc_main.c
++++ b/drivers/net/phy/mscc/mscc_main.c
+@@ -887,6 +887,24 @@ static int vsc8584_micro_deassert_reset(struct phy_device *phydev,
+ 	return 0;
+ }
+ 
++#define MSCC_PHY_CLKOUT_CTL		      13
++#define CLKOUT_CTL_MASK     		  0xE000
++#define CLKOUT_ENABLE        		  0x8000
++#define CLKOUT_FREQ_125MHZ     		  0x4000
++
++static int vsc85xx_clkout_enable(struct phy_device *phydev)
++{
++	int rc;
++
++	mutex_lock(&phydev->lock);
++	rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED_GPIO,
++			      MSCC_PHY_CLKOUT_CTL, CLKOUT_CTL_MASK,
++			      (CLKOUT_ENABLE | CLKOUT_FREQ_125MHZ));
++	mutex_unlock(&phydev->lock);
++
++	return rc;
++}
++
+ /* bus->mdio_lock should be locked when using this function */
+ static int vsc8584_micro_assert_reset(struct phy_device *phydev)
+ {
+@@ -1725,6 +1743,10 @@ static int vsc85xx_config_init(struct phy_device *phydev)
+ 	if (rc)
+ 		return rc;
+ 
++	rc = vsc85xx_clkout_enable(phydev);
++	if (rc)
++		return rc;
++
+ 	for (i = 0; i < vsc8531->nleds; i++) {
+ 		rc = vsc85xx_led_cntl_set(phydev, i, vsc8531->leds_mode[i]);
+ 		if (rc)

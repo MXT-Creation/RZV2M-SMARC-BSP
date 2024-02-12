@@ -1,0 +1,38 @@
+diff --git a/board/renesas/rzv2m-dev/rzv2m-dev.c b/board/renesas/rzv2m-dev/rzv2m-dev.c
+index 38561025..1baf6eed 100644
+--- a/board/renesas/rzv2m-dev/rzv2m-dev.c
++++ b/board/renesas/rzv2m-dev/rzv2m-dev.c
+@@ -409,6 +409,33 @@ int board_early_init_f(void)
+ 	/* HDMI phy setting : SYS GEN_REG2 reg : offset 208h */
+ 	CMN_REG_Write32(0xA3F03208,0x60106010);
+ 
++	/*- Release Ether PHY reset : PFC_P13_GPIO_DO -*/
++	/* PORT13 Input/Output Enable Mask Register */
++	CMN_REG_Write32(0xB6250374, 0x0FFF0000);
++	 
++	/* PORT13 Output control register */
++	CMN_REG_Write32(0xB6250344, 0x00010001);
++ 	
++	/* PORT13 Output value control 
++	 *  set RST to HIGH
++	 */
++	CMN_REG_Write32(0xB6250340, 0x00010001);
++	
++	/*- Enable SDIO Power and select SDI0 PWR to 3V3
++	 * PFC_P10_GPIO_D0 - SD0 PWR Select
++	 * PFC_P10_GPIO_D1 - SD0 PWR Enable
++	 */
++	/* PORT10 Input/Output Enable Mask Register */
++	CMN_REG_Write32(0xB62502B4, 0x01FF0000);
++	 
++	/*  PORT10 Output control register */
++	CMN_REG_Write32(0xB6250284, 0x00030003);
++	
++	/* PORT10 Output value control
++	 * set 0x11 - both outputs to HIGH 
++	 */
++	CMN_REG_Write32(0xB6250280, 0x00030003);
++
+ 	return 0;
+ }
+ 

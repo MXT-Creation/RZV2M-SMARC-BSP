@@ -1,0 +1,21 @@
+diff --git a/drivers/net/phy/mscc.c b/drivers/net/phy/mscc.c
+index d1a643cf5a..ffc566e0fa 100644
+--- a/drivers/net/phy/mscc.c
++++ b/drivers/net/phy/mscc.c
+@@ -1575,6 +1593,16 @@ static struct phy_driver VSC8584_driver = {
+ 
+ int phy_mscc_init(void)
+ {
++	/* enable PHY */
++	printf("Enable PHY 8541\n");
++
++	/* Set In/Out mask */
++	*(volatile unsigned int*)(0xB6250000 + 0x1B4) = 0x080007FF;
++	*(volatile unsigned int*)(0xB6250000 + 0x184) = 0x08000800;
++	*(volatile unsigned int*)(0xB6250000 + 0x180) = 0x08000800;
++	/* wait 100ms */
++	CMN_DelayInUSec(100*1000);
++
+ 	phy_register(&VSC8530_driver);
+ 	phy_register(&VSC8531_driver);
+ 	phy_register(&VSC8540_driver);

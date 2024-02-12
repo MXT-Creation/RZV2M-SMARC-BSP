@@ -1,0 +1,80 @@
+From f9fcd8a3aea8fd3cf8642c27fabca32639b2aa76 Mon Sep 17 00:00:00 2001
+From: Bernd Hollensteiner <Bernd.Hollensteiner@renesas.com>
+Date: Thu, 28 Oct 2021 15:27:30 +0200
+Subject: [PATCH 2001/2001] ddr parameter adaption for used SMARC memory module
+
+---
+ .../inc/b_lpddr4_cfg_ddi_PinSwizzle.h         | 50 +++++++++----------
+ 1 file changed, 25 insertions(+), 25 deletions(-)
+
+diff --git a/source/2nd_loader/inc/b_lpddr4_cfg_ddi_PinSwizzle.h b/source/2nd_loader/inc/b_lpddr4_cfg_ddi_PinSwizzle.h
+index 93272b0..53c0058 100755
+--- a/source/2nd_loader/inc/b_lpddr4_cfg_ddi_PinSwizzle.h
++++ b/source/2nd_loader/inc/b_lpddr4_cfg_ddi_PinSwizzle.h
+@@ -40,38 +40,38 @@ const st_ddi_setting_data_t gs_ddr_ddi_PinSwizzle[] = {
+ 	{ .addr = (0 + 0x020113 * 4), .data = 0x0003 },
+ 	{ .addr = (0 + 0x020114 * 4), .data = 0x0004 },
+ 	{ .addr = (0 + 0x020115 * 4), .data = 0x0005 },
+-	{ .addr = (0 + 0x0100A0 * 4), .data = 0x0001 },
+-	{ .addr = (0 + 0x0100A1 * 4), .data = 0x0005 },
+-	{ .addr = (0 + 0x0100A2 * 4), .data = 0x0004 },
+-	{ .addr = (0 + 0x0100A3 * 4), .data = 0x0007 },
+-	{ .addr = (0 + 0x0100A4 * 4), .data = 0x0000 },
+-	{ .addr = (0 + 0x0100A5 * 4), .data = 0x0003 },
++	{ .addr = (0 + 0x0100A0 * 4), .data = 0x0000 },
++	{ .addr = (0 + 0x0100A1 * 4), .data = 0x0001 },
++	{ .addr = (0 + 0x0100A2 * 4), .data = 0x0002 },
++	{ .addr = (0 + 0x0100A3 * 4), .data = 0x0003 },
++	{ .addr = (0 + 0x0100A4 * 4), .data = 0x0004 },
++	{ .addr = (0 + 0x0100A5 * 4), .data = 0x0005 },
+ 	{ .addr = (0 + 0x0100A6 * 4), .data = 0x0006 },
+-	{ .addr = (0 + 0x0100A7 * 4), .data = 0x0002 },
+-	{ .addr = (0 + 0x0110A0 * 4), .data = 0x0001 },
+-	{ .addr = (0 + 0x0110A1 * 4), .data = 0x0002 },
+-	{ .addr = (0 + 0x0110A2 * 4), .data = 0x0007 },
+-	{ .addr = (0 + 0x0110A3 * 4), .data = 0x0000 },
+-	{ .addr = (0 + 0x0110A4 * 4), .data = 0x0005 },
+-	{ .addr = (0 + 0x0110A5 * 4), .data = 0x0004 },
+-	{ .addr = (0 + 0x0110A6 * 4), .data = 0x0003 },
+-	{ .addr = (0 + 0x0110A7 * 4), .data = 0x0006 },
+-	{ .addr = (0 + 0x0120A0 * 4), .data = 0x0001 },
+-	{ .addr = (0 + 0x0120A1 * 4), .data = 0x0006 },
+-	{ .addr = (0 + 0x0120A2 * 4), .data = 0x0005 },
++	{ .addr = (0 + 0x0100A7 * 4), .data = 0x0007 },
++	{ .addr = (0 + 0x0110A0 * 4), .data = 0x0000 },
++	{ .addr = (0 + 0x0110A1 * 4), .data = 0x0001 },
++	{ .addr = (0 + 0x0110A2 * 4), .data = 0x0002 },
++	{ .addr = (0 + 0x0110A3 * 4), .data = 0x0003 },
++	{ .addr = (0 + 0x0110A4 * 4), .data = 0x0004 },
++	{ .addr = (0 + 0x0110A5 * 4), .data = 0x0005 },
++	{ .addr = (0 + 0x0110A6 * 4), .data = 0x0006 },
++	{ .addr = (0 + 0x0110A7 * 4), .data = 0x0007 },
++	{ .addr = (0 + 0x0120A0 * 4), .data = 0x0000 },
++	{ .addr = (0 + 0x0120A1 * 4), .data = 0x0001 },
++	{ .addr = (0 + 0x0120A2 * 4), .data = 0x0002 },
+ 	{ .addr = (0 + 0x0120A3 * 4), .data = 0x0003 },
+ 	{ .addr = (0 + 0x0120A4 * 4), .data = 0x0004 },
+-	{ .addr = (0 + 0x0120A5 * 4), .data = 0x0007 },
+-	{ .addr = (0 + 0x0120A6 * 4), .data = 0x0002 },
+-	{ .addr = (0 + 0x0120A7 * 4), .data = 0x0000 },
+-	{ .addr = (0 + 0x0130A0 * 4), .data = 0x0002 },
++	{ .addr = (0 + 0x0120A5 * 4), .data = 0x0005 },
++	{ .addr = (0 + 0x0120A6 * 4), .data = 0x0006 },
++	{ .addr = (0 + 0x0120A7 * 4), .data = 0x0007 },
++	{ .addr = (0 + 0x0130A0 * 4), .data = 0x0000 },
+ 	{ .addr = (0 + 0x0130A1 * 4), .data = 0x0001 },
+-	{ .addr = (0 + 0x0130A2 * 4), .data = 0x0007 },
+-	{ .addr = (0 + 0x0130A3 * 4), .data = 0x0000 },
++	{ .addr = (0 + 0x0130A2 * 4), .data = 0x0002 },
++	{ .addr = (0 + 0x0130A3 * 4), .data = 0x0003 },
+ 	{ .addr = (0 + 0x0130A4 * 4), .data = 0x0004 },
+ 	{ .addr = (0 + 0x0130A5 * 4), .data = 0x0005 },
+ 	{ .addr = (0 + 0x0130A6 * 4), .data = 0x0006 },
+-	{ .addr = (0 + 0x0130A7 * 4), .data = 0x0003 },
++	{ .addr = (0 + 0x0130A7 * 4), .data = 0x0007 },
+ 	{ .addr = DDR_NO_DATA_SYMBOL, .data = 0 }
+ };
+ 
+-- 
+2.25.1
+

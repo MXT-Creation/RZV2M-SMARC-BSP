@@ -1,0 +1,27 @@
+diff --git a/drivers/mmc/host/renesas_sdhi_core.c b/drivers/mmc/host/renesas_sdhi_core.c
+index 84b95a66e..11c311eaf 100644
+--- a/drivers/mmc/host/renesas_sdhi_core.c
++++ b/drivers/mmc/host/renesas_sdhi_core.c
+@@ -36,6 +36,7 @@
+ #include <linux/slab.h>
+ #include <linux/sys_soc.h>
+ #include <linux/dma-mapping.h>
++#include <linux/gpio.h>
+ 
+ #include "renesas_sdhi.h"
+ #include "tmio_mmc.h"
+@@ -93,6 +94,14 @@ static int psc_voltage_switch(uint32_t pins, uint8_t voltage)
+        writel(data , remap_addr + B2REG_PSC_SDSEL_OFSET);
+        iounmap(remap_addr);
+ 
++	gpio_direction_output(148, GPIOF_DIR_OUT);
++	if (PSC_REG_SD_1_8V == voltage){
++		gpio_set_value(148, GPIOF_INIT_HIGH);
++	}
++	else if (PSC_REG_SD_3_3V == voltage){
++		gpio_set_value(148, GPIOF_INIT_LOW);
++	}
++
+        return 0;
+ }
+ 

@@ -1,0 +1,21 @@
+diff --git a/source/1st_loader/src/evk_HWSetup.c b/source/1st_loader/src/evk_HWSetup.c
+index 6f9ef56..fc91542 100755
+--- a/source/1st_loader/src/evk_HWSetup.c
++++ b/source/1st_loader/src/evk_HWSetup.c
+@@ -40,6 +40,16 @@ void InitPFC(void)
+ {
+     /* Set Pin function to PFC unit */
+     Set_Eachpin();
++
++    /* set carrier stdby */
++    PFC_WriteReg(PFC_P06_EN_MSK,  0x00020FFD);
++    PFC_WriteReg(PFC_P06_GPIO_OE, 0x00020002);
++    PFC_WriteReg(PFC_P06_GPIO_DO, 0x00020002);
++
++    /* enable card power on */
++    PFC_WriteReg(PFC_P01_EN_MSK,  0x0100FEFF);
++    PFC_WriteReg(PFC_P01_GPIO_OE, 0x01000100);
++    PFC_WriteReg(PFC_P01_GPIO_DO, 0x01000100);
+ }
+ 
+ 
