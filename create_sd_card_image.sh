@@ -36,7 +36,7 @@ SZ_SUFFIX=G                 # G=1024*3 ; GB=1000*3 (choose your favorite)
 FAT_SIZE=128M
 TOTAL_DISK_SIZE=8
 EXT_TYPE=ext4
-FAT_PART_LABEL=RZ_fat
+FAT_PART_LABEL=RZ_FAT
 ROOTFS_PART_LABEL=RZ_ext
 
 IMG_FILENAME="sd_card.img"
