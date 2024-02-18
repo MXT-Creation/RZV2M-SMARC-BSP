@@ -11,5 +11,8 @@ IMAGE_INSTALL_append = " \
 	iperf3 \
 	app-usbcam-http \
 	app-usbcam-client \
+	app-hrnet-cam-hdmi \
+	app-hrnet-pre-yolov3-cam-hdmi \
+	app-tinyyolov2-cam-hdmi \
 "
 

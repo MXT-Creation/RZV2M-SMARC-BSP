@@ -1,0 +1,12 @@
+[Unit]
+Description=RZ/V AI Evaluation Software - TinyYOLOv2 from MIPI cam to HDMI
+After=systemd-user-sessions.service
+
+[Service]
+WorkingDirectory=/home/root/app-tinyyolov2-cam-hdmi
+ExecStart=/home/root/app-tinyyolov2-cam-hdmi/sample_app_tinyyolov2_cam_hdmi
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

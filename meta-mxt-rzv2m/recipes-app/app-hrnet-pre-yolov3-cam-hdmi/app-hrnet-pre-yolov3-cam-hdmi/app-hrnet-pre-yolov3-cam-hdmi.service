@@ -1,0 +1,12 @@
+[Unit]
+Description=RZ/V AI Evaluation Software - HRnet Pre + YOLOv3 from MIPI cam to HDMI
+After=systemd-user-sessions.service
+
+[Service]
+WorkingDirectory=/home/root/app-hrnet-pre-yolov3-cam-hdmi
+ExecStart=/home/root/app-hrnet-pre-yolov3-cam-hdmi/sample_app_hrnet_pre-yolov3_cam_hdmi
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

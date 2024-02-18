@@ -1,0 +1,12 @@
+[Unit]
+Description=RZ/V AI Evaluation Software - HRnet from MIPI cam to HDMI
+After=systemd-user-sessions.service
+
+[Service]
+WorkingDirectory=/home/root/app-hrnet-cam-hdmi
+ExecStart=/home/root/app-hrnet-cam-hdmi/sample_app_hrnet_cam_hdmi
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
