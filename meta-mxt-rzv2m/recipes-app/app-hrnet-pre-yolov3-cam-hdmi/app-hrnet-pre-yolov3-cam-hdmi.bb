@@ -49,6 +49,7 @@ do_install() {
 	install -m 0644 ${WORKDIR}/${BPN}.service ${D}${systemd_unitdir}/system/
 }
 
+SYSTEMD_AUTO_ENABLE = "disable"
 SYSTEMD_SERVICE_${PN} = "${BPN}.service"
 
 FILES_${PN} = " \
