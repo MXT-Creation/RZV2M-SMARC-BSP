@@ -6,7 +6,7 @@ index b961e0d63..907eaaa0e 100644
              phy0: ethernet-phy@0 {
                  rxc-skew-ps = <1500>;
                  reg = <0>;
-+                reset-gpios = <&gpio13 0 GPIO_ACTIVE_LOW>;
++                reset-gpios = <&gpio6 11 GPIO_ACTIVE_LOW>;
              };
          };
  

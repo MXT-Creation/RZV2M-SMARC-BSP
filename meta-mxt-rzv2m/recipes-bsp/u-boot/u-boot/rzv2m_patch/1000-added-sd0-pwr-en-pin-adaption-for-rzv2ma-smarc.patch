@@ -6,17 +6,17 @@ index 38561025..1baf6eed 100644
  	/* HDMI phy setting : SYS GEN_REG2 reg : offset 208h */
  	CMN_REG_Write32(0xA3F03208,0x60106010);
  
-+	/*- Release Ether PHY reset : PFC_P13_GPIO_DO -*/
-+	/* PORT13 Input/Output Enable Mask Register */
-+	CMN_REG_Write32(0xB6250374, 0x0FFF0000);
++	/*- Release Ether PHY reset : PFC_P06_GPIO_D11 -*/
++	/* PORT06 Input/Output Enable Mask Register */
++	CMN_REG_Write32(0xB62501b4, 0x0FFF0000);
 +	 
-+	/* PORT13 Output control register */
-+	CMN_REG_Write32(0xB6250344, 0x00010001);
++	/* PORT06 Output control register */
++	CMN_REG_Write32(0xB6250184, 0x08000800);
 + 	
-+	/* PORT13 Output value control 
++	/* PORT06 Output value control 
 +	 *  set RST to HIGH
 +	 */
-+	CMN_REG_Write32(0xB6250340, 0x00010001);
++	CMN_REG_Write32(0xB6250180, 0x00800800);
 +	
 +	/*- Enable SDIO Power and select SDI0 PWR to 3V3
 +	 * PFC_P10_GPIO_D0 - SD0 PWR Select
