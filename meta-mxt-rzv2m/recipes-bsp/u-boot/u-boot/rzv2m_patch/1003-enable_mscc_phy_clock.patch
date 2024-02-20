@@ -10,9 +10,9 @@ index d1a643cf5a..ffc566e0fa 100644
 +	printf("Enable PHY 8541\n");
 +
 +	/* Set In/Out mask */
-+	*(volatile unsigned int*)(0xB6250000 + 0x1B4) = 0x080007FF;
-+	*(volatile unsigned int*)(0xB6250000 + 0x184) = 0x08000800;
-+	*(volatile unsigned int*)(0xB6250000 + 0x180) = 0x08000800;
++	*(volatile unsigned int*)(0xB6250000 + 0x1B4) = 0x0FFF0000;
++	*(volatile unsigned int*)(0xB6250000 + 0x184) = 0x08400840;
++	*(volatile unsigned int*)(0xB6250000 + 0x180) = 0x08400840;
 +	/* wait 100ms */
 +	CMN_DelayInUSec(100*1000);
 +
