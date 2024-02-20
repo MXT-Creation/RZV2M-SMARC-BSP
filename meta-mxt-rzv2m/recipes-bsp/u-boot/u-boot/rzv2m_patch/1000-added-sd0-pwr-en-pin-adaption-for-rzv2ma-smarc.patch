@@ -6,32 +6,32 @@ index 38561025..1baf6eed 100644
  	/* HDMI phy setting : SYS GEN_REG2 reg : offset 208h */
  	CMN_REG_Write32(0xA3F03208,0x60106010);
  
-+	/*- Release Ether PHY reset : PFC_P06_GPIO_D11 -*/
++	/*- Release USB HUB reset : PFC_P06_GPIO_D06 -*/
 +	/* PORT06 Input/Output Enable Mask Register */
 +	CMN_REG_Write32(0xB62501b4, 0x0FFF0000);
 +	 
 +	/* PORT06 Output control register */
-+	CMN_REG_Write32(0xB6250184, 0x08000800);
++	CMN_REG_Write32(0xB6250184, 0x00400040);
 + 	
 +	/* PORT06 Output value control 
 +	 *  set RST to HIGH
 +	 */
-+	CMN_REG_Write32(0xB6250180, 0x00800800);
++	CMN_REG_Write32(0xB6250180, 0x00400040);
 +	
-+	/*- Enable SDIO Power and select SDI0 PWR to 3V3
-+	 * PFC_P10_GPIO_D0 - SD0 PWR Select
-+	 * PFC_P10_GPIO_D1 - SD0 PWR Enable
++	/*- Enable SDIO Power select SDI0 PWR to 3V3
++	 * PFC_P09_GPIO_D4 - SD0 PWR Select
++	 * SD0 PWR Enable is given bt the power sequencer MCU
 +	 */
-+	/* PORT10 Input/Output Enable Mask Register */
-+	CMN_REG_Write32(0xB62502B4, 0x01FF0000);
++	/* PORT09 Input/Output Enable Mask Register */
++	CMN_REG_Write32(0xB6250274, 0x00FF0000);
 +	 
-+	/*  PORT10 Output control register */
-+	CMN_REG_Write32(0xB6250284, 0x00030003);
++	/* PORT09 Output control register */
++	CMN_REG_Write32(0xB6250244, 0x00100010);
 +	
-+	/* PORT10 Output value control
-+	 * set 0x11 - both outputs to HIGH 
++	/* PORT09 Output value control
++	 * set LOW to P0604 for 3V3
 +	 */
-+	CMN_REG_Write32(0xB6250280, 0x00030003);
++	CMN_REG_Write32(0xB6250240, 0x00100000);
 +
  	return 0;
  }
