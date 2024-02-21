@@ -2,6 +2,7 @@ IMAGE_FEATURES_remove = " ssh-server-dropbear"
 IMAGE_FEATURES_append = " ssh-server-openssh"
 
 IMAGE_INSTALL_append = " \
+	devmem2 \
 	u-boot-tools \
 	kernel-image \
 	kernel-devicetree \
