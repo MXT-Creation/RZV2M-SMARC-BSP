@@ -3,6 +3,7 @@ IMAGE_FEATURES_append = " ssh-server-openssh"
 
 IMAGE_INSTALL_append = " \
 	devmem2 \
+	phytool \
 	u-boot-tools \
 	kernel-image \
 	kernel-devicetree \
