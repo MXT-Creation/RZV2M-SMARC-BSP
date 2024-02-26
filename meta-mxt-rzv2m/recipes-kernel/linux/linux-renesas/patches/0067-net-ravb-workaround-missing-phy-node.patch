@@ -1,0 +1,46 @@
+From 81c9af39e97f728fab39f8a33ee81203008c8383 Mon Sep 17 00:00:00 2001
+From: Alexandru Ardelean <alex@shruggie.ro>
+Date: Sat, 24 Feb 2024 22:42:28 +0200
+Subject: [PATCH] net: ravb: workaround missing phy-node
+
+---
+ drivers/net/ethernet/renesas/ravb.h      | 1 +
+ drivers/net/ethernet/renesas/ravb_main.c | 3 +++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/drivers/net/ethernet/renesas/ravb.h b/drivers/net/ethernet/renesas/ravb.h
+index e642e1b34..91dfd9019 100644
+--- a/drivers/net/ethernet/renesas/ravb.h
++++ b/drivers/net/ethernet/renesas/ravb.h
+@@ -1050,6 +1050,7 @@ struct ravb_private {
+ 	struct clk *clk;
+ 	struct clk *refclk;
+ 	struct mdiobb_ctrl mdiobb;
++	struct device_node *phy_node;
+ 	u32 num_rx_ring[NUM_RX_QUEUE];
+ 	u32 num_tx_ring[NUM_TX_QUEUE];
+ 	u32 desc_bat_size;
+diff --git a/drivers/net/ethernet/renesas/ravb_main.c b/drivers/net/ethernet/renesas/ravb_main.c
+index b2600286d..9f8a7fe06 100644
+--- a/drivers/net/ethernet/renesas/ravb_main.c
++++ b/drivers/net/ethernet/renesas/ravb_main.c
+@@ -1393,6 +1393,7 @@ static int ravb_phy_init(struct net_device *ndev)
+ 
+ 	/* Try connecting to PHY */
+ 	pn = of_parse_phandle(np, "phy-handle", 0);
++	pn = priv->phy_node;
+ 	if (!pn) {
+ 		/* In the case of a fixed PHY, the DT node associated
+ 		 * to the PHY is the Ethernet MAC DT node.
+@@ -2353,6 +2354,8 @@ static int ravb_mdio_init(struct ravb_private *priv)
+ 	if (!priv->mii_bus)
+ 		return -ENOMEM;
+ 
++	priv->phy_node = of_parse_phandle(dev->of_node, "phy-handle", 0);
++
+ 	/* Hook up MII support for ethtool */
+ 	priv->mii_bus->name = "ravb_mii";
+ 	priv->mii_bus->parent = dev;
+-- 
+2.43.2
+
