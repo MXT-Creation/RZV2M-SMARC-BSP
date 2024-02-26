@@ -1,12 +1,17 @@
-diff --git a/arch/arm64/boot/dts/renesas/r9a09g011gbg.dtsi b/arch/arm64/boot/dts/renesas/r9a09g011gbg.dtsi
-index b961e0d63..907eaaa0e 100644
---- a/arch/arm64/boot/dts/renesas/r9a09g011gbg.dtsi
-+++ b/arch/arm64/boot/dts/renesas/r9a09g011gbg.dtsi
-@@ -564,6 +564,7 @@ GIC_SPI 278 IRQ_TYPE_LEVEL_HIGH>,
-             phy0: ethernet-phy@0 {
-                 rxc-skew-ps = <1500>;
-                 reg = <0>;
-+                reset-gpios = <&gpio6 11 GPIO_ACTIVE_LOW>;
-             };
-         };
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g011gbg-evaluation-board.dts b/arch/arm64/boot/dts/renesas/r9a09g011gbg-evaluation-board.dts
+index 3a9926706..c954c7d64 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g011gbg-evaluation-board.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g011gbg-evaluation-board.dts
+@@ -151,6 +151,12 @@ &eMM {
+     status = "okay";
+ };
  
++&phy0 {
++    reset-gpios = <&gpio6 11 GPIO_ACTIVE_LOW>;
++    reset-assert-us = <20000>;
++    reset-deassert-us = <50000>;
++};
++
+ &avb {
+     status = "okay";
+ };
