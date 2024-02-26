@@ -1,0 +1,12 @@
+diff --git a/arch/arm64/boot/dts/renesas/r9a09g011gbg-evaluation-board.dts b/arch/arm64/boot/dts/renesas/r9a09g011gbg-evaluation-board.dts
+index 3a9926706..2d7b0d659 100644
+--- a/arch/arm64/boot/dts/renesas/r9a09g011gbg-evaluation-board.dts
++++ b/arch/arm64/boot/dts/renesas/r9a09g011gbg-evaluation-board.dts
+@@ -153,6 +153,7 @@ &eMM {
+ 
+ &avb {
+     status = "okay";
++    phy-mode = "gmii";
+ };
+ 
+ &pwm8 {
